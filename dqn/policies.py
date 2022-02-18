@@ -20,7 +20,7 @@ class QNetwork(BasePolicy):
     Action-Value (Q-Value) network for DQN
 
     :param observation_space: Observation space
-    :param action_space: Action space
+    :param meta_action_space: Action space
     :param net_arch: The specification of the policy and value networks.
     :param activation_fn: Activation function
     :param normalize_images: Whether to normalize images or not,
@@ -30,7 +30,7 @@ class QNetwork(BasePolicy):
     def __init__(
         self,
         observation_space: gym.spaces.Space,
-        action_space: gym.spaces.Space,
+        meta_action_space: gym.spaces.Space,
         features_extractor: nn.Module,
         features_dim: int,
         net_arch: Optional[List[int]] = None,
@@ -39,7 +39,7 @@ class QNetwork(BasePolicy):
     ):
         super(QNetwork, self).__init__(
             observation_space,
-            action_space,
+            meta_action_space,
             features_extractor=features_extractor,
             normalize_images=normalize_images,
         )
@@ -52,7 +52,7 @@ class QNetwork(BasePolicy):
         self.features_extractor = features_extractor
         self.features_dim = features_dim
         self.normalize_images = normalize_images
-        action_dim = self.action_space.n  # number of actions
+        action_dim = self.meta_action_space.n  # number of actions
         q_net = create_mlp(self.features_dim, action_dim, self.net_arch, self.activation_fn)
         self.q_net = nn.Sequential(*q_net)
 
@@ -90,7 +90,7 @@ class DQNPolicy(BasePolicy):
     Policy class with Q-Value Net and target net for DQN
 
     :param observation_space: Observation space
-    :param action_space: Action space
+    :param meta_action_space: Action space
     :param lr_schedule: Learning rate schedule (could be constant)
     :param net_arch: The specification of the policy and value networks.
     :param activation_fn: Activation function
@@ -108,7 +108,7 @@ class DQNPolicy(BasePolicy):
     def __init__(
         self,
         observation_space: gym.spaces.Space,
-        action_space: gym.spaces.Space,
+        meta_action_space: gym.spaces.Space,
         lr_schedule: Schedule,
         net_arch: Optional[List[int]] = None,
         activation_fn: Type[nn.Module] = nn.ReLU,
@@ -120,7 +120,7 @@ class DQNPolicy(BasePolicy):
     ):
         super(DQNPolicy, self).__init__(
             observation_space,
-            action_space,
+            meta_action_space,
             features_extractor_class,
             features_extractor_kwargs,
             optimizer_class=optimizer_class,
@@ -139,7 +139,7 @@ class DQNPolicy(BasePolicy):
 
         self.net_args = {
             "observation_space": self.observation_space,
-            "action_space": self.action_space,
+            "meta_action_space": self.meta_action_space,
             "net_arch": self.net_arch,
             "activation_fn": self.activation_fn,
             "normalize_images": normalize_images,
@@ -199,7 +199,7 @@ class CnnPolicy(DQNPolicy):
     Policy class for DQN when using images as input.
 
     :param observation_space: Observation space
-    :param action_space: Action space
+    :param meta_action_space: Action space
     :param lr_schedule: Learning rate schedule (could be constant)
     :param net_arch: The specification of the policy and value networks.
     :param activation_fn: Activation function
@@ -215,7 +215,7 @@ class CnnPolicy(DQNPolicy):
     def __init__(
         self,
         observation_space: gym.spaces.Space,
-        action_space: gym.spaces.Space,
+        meta_action_space: gym.spaces.Space,
         lr_schedule: Schedule,
         net_arch: Optional[List[int]] = None,
         activation_fn: Type[nn.Module] = nn.ReLU,
@@ -227,7 +227,7 @@ class CnnPolicy(DQNPolicy):
     ):
         super(CnnPolicy, self).__init__(
             observation_space,
-            action_space,
+            meta_action_space,
             lr_schedule,
             net_arch,
             activation_fn,
@@ -244,7 +244,7 @@ class MultiInputPolicy(DQNPolicy):
     Policy class for DQN when using dict observations as input.
 
     :param observation_space: Observation space
-    :param action_space: Action space
+    :param meta_action_space: Action space
     :param lr_schedule: Learning rate schedule (could be constant)
     :param net_arch: The specification of the policy and value networks.
     :param activation_fn: Activation function
@@ -260,7 +260,7 @@ class MultiInputPolicy(DQNPolicy):
     def __init__(
         self,
         observation_space: gym.spaces.Dict,
-        action_space: gym.spaces.Space,
+        meta_action_space: gym.spaces.Space,
         lr_schedule: Schedule,
         net_arch: Optional[List[int]] = None,
         activation_fn: Type[nn.Module] = nn.ReLU,
@@ -272,7 +272,7 @@ class MultiInputPolicy(DQNPolicy):
     ):
         super(MultiInputPolicy, self).__init__(
             observation_space,
-            action_space,
+            meta_action_space,
             lr_schedule,
             net_arch,
             activation_fn,

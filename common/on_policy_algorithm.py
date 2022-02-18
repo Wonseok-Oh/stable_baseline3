@@ -229,9 +229,8 @@ class OnPolicyAlgorithm(BaseAlgorithm):
         )
 
         callback.on_training_start(locals(), globals())
-
+        prev_save_idx = 0
         while self.num_timesteps < total_timesteps:
-
             continue_training = self.collect_rollouts(self.env, callback, self.rollout_buffer, n_rollout_steps=self.n_steps)
 
             if continue_training is False:
@@ -240,6 +239,13 @@ class OnPolicyAlgorithm(BaseAlgorithm):
             iteration += 1
             self._update_current_progress_remaining(self.num_timesteps, total_timesteps)
 
+            current_save_idx = self.num_timesteps // 10000
+
+
+            if current_save_idx - prev_save_idx > 0:
+                prev_save_idx = current_save_idx
+                self.save(tb_log_name + str(current_save_idx))
+            
             # Display training infos
             if log_interval is not None and iteration % log_interval == 0:
                 fps = int(self.num_timesteps / (time.time() - self.start_time))

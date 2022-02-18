@@ -536,9 +536,9 @@ class BaseAlgorithm(ABC):
         :return: the model's meta_action and the next state
             (used in recurrent policies)
         """
-        print("shape: {}".format(observation.shape))
+        #print("shape: {}".format(observation.shape))
         obs = th.reshape(th.tensor(observation), shape=observation.shape).to('cuda')
-        self.policy.forward(obs)
+        #self.policy.forward(obs)
         #print(self.policy.forward(th.tensor(observation)))
         return self.policy.predict(observation, state, mask, deterministic)
 

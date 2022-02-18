@@ -81,7 +81,7 @@ class BaseCallback(ABC):
 
         :return: If the callback returns False, training is aborted early.
         """
-        self.n_calls += 1
+        # self.n_calls += 1
         # timesteps start at zero
         self.num_timesteps = self.model.num_timesteps
 

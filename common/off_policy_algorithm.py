@@ -70,7 +70,7 @@ class OffPolicyAlgorithm(BaseAlgorithm):
     :param sde_support: Whether the model support gSDE or not
     :param remove_time_limit_termination: Remove terminations (dones) that are due to time limit.
         See https://github.com/hill-a/stable-baselines/issues/863
-    :param supported_action_spaces: The action spaces supported by the algorithm.
+    :param supported_meta_action_spaces: The action spaces supported by the algorithm.
     """
 
     def __init__(
@@ -103,7 +103,7 @@ class OffPolicyAlgorithm(BaseAlgorithm):
         use_sde_at_warmup: bool = False,
         sde_support: bool = True,
         remove_time_limit_termination: bool = False,
-        supported_action_spaces: Optional[Tuple[gym.spaces.Space, ...]] = None,
+        supported_meta_action_spaces: Optional[Tuple[gym.spaces.Space, ...]] = None,
     ):
 
         super(OffPolicyAlgorithm, self).__init__(
@@ -121,7 +121,7 @@ class OffPolicyAlgorithm(BaseAlgorithm):
             seed=seed,
             use_sde=use_sde,
             sde_sample_freq=sde_sample_freq,
-            supported_action_spaces=supported_action_spaces,
+            supported_meta_action_spaces=supported_meta_action_spaces,
         )
         self.buffer_size = buffer_size
         self.batch_size = batch_size
@@ -195,7 +195,7 @@ class OffPolicyAlgorithm(BaseAlgorithm):
                 replay_buffer = DictReplayBuffer(
                     self.buffer_size,
                     self.observation_space,
-                    self.action_space,
+                    self.meta_action_space,
                     self.device,
                     optimize_memory_usage=self.optimize_memory_usage,
                 )
@@ -212,7 +212,7 @@ class OffPolicyAlgorithm(BaseAlgorithm):
             self.replay_buffer = self.replay_buffer_class(
                 self.buffer_size,
                 self.observation_space,
-                self.action_space,
+                self.meta_action_space,
                 self.device,
                 optimize_memory_usage=self.optimize_memory_usage,
                 **self.replay_buffer_kwargs,
@@ -220,7 +220,7 @@ class OffPolicyAlgorithm(BaseAlgorithm):
 
         self.policy = self.policy_class(  # pytype:disable=not-instantiable
             self.observation_space,
-            self.action_space,
+            self.meta_action_space,
             self.lr_schedule,
             **self.policy_kwargs,  # pytype:disable=not-instantiable
         )
@@ -379,49 +379,49 @@ class OffPolicyAlgorithm(BaseAlgorithm):
         """
         raise NotImplementedError()
 
-    def _sample_action(
+    def _sample_meta_action(
         self, learning_starts: int, action_noise: Optional[ActionNoise] = None
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
-        Sample an action according to the exploration policy.
+        Sample an meta_action according to the exploration policy.
         This is either done by sampling the probability distribution of the policy,
-        or sampling a random action (from a uniform distribution over the action space)
+        or sampling a random meta_action (from a uniform distribution over the meta_action space)
         or by adding noise to the deterministic output.
 
         :param action_noise: Action noise that will be used for exploration
             Required for deterministic policy (e.g. TD3). This can also be used
             in addition to the stochastic policy for SAC.
         :param learning_starts: Number of steps before learning for the warm-up phase.
-        :return: action to take in the environment
-            and scaled action that will be stored in the replay buffer.
-            The two differs when the action space is not normalized (bounds are not [-1, 1]).
+        :return: meta_action to take in the environment
+            and scaled meta_action that will be stored in the replay buffer.
+            The two differs when the meta_action space is not normalized (bounds are not [-1, 1]).
         """
-        # Select action randomly or according to policy
+        # Select meta_action randomly or according to policy
         if self.num_timesteps < learning_starts and not (self.use_sde and self.use_sde_at_warmup):
             # Warmup phase
-            unscaled_action = np.array([self.action_space.sample()])
+            unscaled_meta_action = np.array([self.meta_action_space.sample()])
         else:
-            # Note: when using continuous actions,
-            # we assume that the policy uses tanh to scale the action
-            # We use non-deterministic action in the case of SAC, for TD3, it does not matter
-            unscaled_action, _ = self.predict(self._last_obs, deterministic=False)
+            # Note: when using continuous meta_actions,
+            # we assume that the policy uses tanh to scale the meta_action
+            # We use non-deterministic meta_action in the case of SAC, for TD3, it does not matter
+            unscaled_meta_action, _ = self.predict(self._last_obs, deterministic=False)
 
-        # Rescale the action from [low, high] to [-1, 1]
-        if isinstance(self.action_space, gym.spaces.Box):
-            scaled_action = self.policy.scale_action(unscaled_action)
+        # Rescale the meta_action from [low, high] to [-1, 1]
+        if isinstance(self.meta_action_space, gym.spaces.Box):
+            scaled_meta_action = self.policy.scale_meta_action(unscaled_meta_action)
 
-            # Add noise to the action (improve exploration)
+            # Add noise to the meta_action (improve exploration)
             if action_noise is not None:
-                scaled_action = np.clip(scaled_action + action_noise(), -1, 1)
+                scaled_meta_action = np.clip(scaled_meta_action + action_noise(), -1, 1)
 
             # We store the scaled action in the buffer
-            buffer_action = scaled_action
-            action = self.policy.unscale_action(scaled_action)
+            buffer_meta_action = scaled_meta_action
+            meta_action = self.policy.unscale_meta_action(scaled_meta_action)
         else:
             # Discrete case, no need to normalize or clip
-            buffer_action = unscaled_action
-            action = buffer_action
-        return action, buffer_action
+            buffer_meta_action = unscaled_meta_action
+            meta_action = buffer_meta_action
+        return meta_action, buffer_meta_action
 
     def _dump_logs(self) -> None:
         """
@@ -452,10 +452,18 @@ class OffPolicyAlgorithm(BaseAlgorithm):
         """
         pass
 
+    def _on_invoke(self) -> None:
+        """
+        Method called after each invoke in the environment.
+        It is meant to trigger DQN target network update
+        but can be used for other purposes
+        """
+        pass
+
     def _store_transition(
         self,
         replay_buffer: ReplayBuffer,
-        buffer_action: np.ndarray,
+        buffer_meta_action: np.ndarray,
         new_obs: np.ndarray,
         reward: np.ndarray,
         done: np.ndarray,
@@ -463,11 +471,11 @@ class OffPolicyAlgorithm(BaseAlgorithm):
     ) -> None:
         """
         Store transition in the replay buffer.
-        We store the normalized action and the unnormalized observation.
+        We store the normalized meta_action and the unnormalized observation.
         It also handles terminal observations (because VecEnv resets automatically).
 
         :param replay_buffer: Replay buffer object where to store the transition.
-        :param buffer_action: normalized action
+        :param buffer_meta_action: normalized meta_action
         :param new_obs: next observation in the current episode
             or first observation of the episode (when done is True)
         :param reward: reward for the current transition
@@ -496,7 +504,7 @@ class OffPolicyAlgorithm(BaseAlgorithm):
         replay_buffer.add(
             self._last_original_obs,
             next_obs,
-            buffer_action,
+            buffer_meta_action,
             reward_,
             done,
             infos,
@@ -559,11 +567,11 @@ class OffPolicyAlgorithm(BaseAlgorithm):
                     # Sample a new noise matrix
                     self.actor.reset_noise()
 
-                # Select action randomly or according to policy
-                action, buffer_action = self._sample_action(learning_starts, action_noise)
+                # Select meta_action randomly or according to policy
+                meta_action, buffer_meta_action = self._sample_meta_action(learning_starts, action_noise)
 
-                # Rescale and perform action
-                new_obs, reward, done, infos = env.step(action)
+                # Rescale and perform meta_action
+                new_obs, reward, done, infos = env.invoke(meta_action)
 
                 self.num_timesteps += 1
                 episode_timesteps += 1
@@ -580,8 +588,8 @@ class OffPolicyAlgorithm(BaseAlgorithm):
                 # Retrieve reward and episode length if using Monitor wrapper
                 self._update_info_buffer(infos, done)
 
-                # Store data in replay buffer (normalized action and unnormalized observation)
-                self._store_transition(replay_buffer, buffer_action, new_obs, reward, done, infos)
+                # Store data in replay buffer (normalized meta_action and unnormalized observation)
+                self._store_transition(replay_buffer, buffer_meta_action, new_obs, reward, done, infos)
 
                 self._update_current_progress_remaining(self.num_timesteps, self._total_timesteps)
 
@@ -589,7 +597,7 @@ class OffPolicyAlgorithm(BaseAlgorithm):
                 # and update the exploration schedule
                 # For SAC/TD3, the update is done as the same time as the gradient update
                 # see https://github.com/hill-a/stable-baselines/issues/900
-                self._on_step()
+                self._on_invoke()
 
                 if not should_collect_more_steps(train_freq, num_collected_steps, num_collected_episodes):
                     break
